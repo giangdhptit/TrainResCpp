@@ -108,6 +108,11 @@ void handleTicketOptions() {
     }
 }
 
+const std::string DB_HOST = "tcp://localhost:3306";
+const std::string DB_USER = "robin";
+const std::string DB_PASS = "!";
+const std::string DB_NAME = "trainres";
+
 void handleMenuOption(int ch, sql::Connection* con) {
     string username, password, email;
     int ch1;
@@ -169,7 +174,8 @@ int main() {
 
     try {
         driver = sql::mysql::get_mysql_driver_instance();
-        con = driver->connect("tcp://127.0.0.1:3306", "root", "123456a@");
+        driver = sql::mysql::get_mysql_driver_instance();
+        con = driver->connect(DB_HOST, DB_USER, DB_PASS);
         if (con->isValid()) {
             cout << "Connection successful!" << endl;
         }
@@ -177,10 +183,10 @@ int main() {
         while (1) {
             system("clear");
             cout << "\nRAILWAY RESERVATION SYSTEM\n";
-            cout << "1. View Train Info\n";
-            cout << "2. Search Trains\n";
-            cout << "3. User Login / Registration\n";
-            cout << "4. Admin Login\n";
+            cout << "1. View Train Info\n"; //everybody
+            cout << "2. Search Trains\n"; //everybody - if user choose 1 train -> go to reserve function
+            cout << "3. Reserve/ Cancel Ticket"; //user page
+            cout << "4. Admin Login\n"; //admin page
             cout << "5. Exit\n";
             cout << "Choice: ";
             cin >> ch;
