@@ -4,6 +4,15 @@
 #include <string.h>
 #include <time.h>
 
+#include <iostream>
+#include <stdexcept>
+#include "/usr/local/mysql-connector-c++-8.0.20/include/jdbc/mysql_driver.h"
+#include "/usr/local/mysql-connector-c++-8.0.20/include/jdbc/mysql_connection.h"
+#include "/usr/local/mysql-connector-c++-8.0.20/include/jdbc/cppconn/statement.h"
+#include "/usr/local/mysql-connector-c++-8.0.20/include/jdbc/cppconn/resultset.h"
+#include "/usr/local/mysql-connector-c++-8.0.20/include/jdbc/cppconn/prepared_statement.h"
+#include <memory> // For std::unique_ptr, std::shared_ptr
+
 // 구조체 정의
 struct adddata {
     char si[10];
@@ -24,6 +33,11 @@ struct bookticket {
     int seat;
 } book[1000];
 
+const std::string DB_HOST = "tcp://localhost:3306";
+const std::string DB_USER = "root";
+const std::string DB_PASS = "pwd"; 
+const std::string DB_NAME = "trainres";
+
 int k = 0, u = 0;
 
 // 함수 선언
@@ -40,7 +54,7 @@ void aread();
 void bookticket_write();
 void viewpassengers_read();
 
-void pause() {
+void pause_press() {
     printf("\nPress Enter to continue...");
     getchar(); getchar();
 }
@@ -91,13 +105,184 @@ void viewpassengers_read() {
 
 void viewinfo() {
     system("clear");
-    aread();
-    printf("\nTrain Info:\nSI\tTrain#\tName\tStart\tDest\tPrice\tSeat\tTime\n");
-    for (int i = 0; i < k; i++) {
-        printf("%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
-               add[i].si, add[i].train_number, add[i].train_name, add[i].start, add[i].destination, add[i].price, add[i].seat, add[i].time);
+    try {
+        sql::mysql::MySQL_Driver* driver;
+        sql::Connection* con;
+        sql::Statement* stmt;
+        sql::ResultSet* res;
+
+        driver = sql::mysql::get_mysql_driver_instance();
+        con = driver->connect(DB_HOST, DB_USER, DB_PASS);
+        con->setSchema("trainres");
+
+        stmt = con->createStatement();
+        res = stmt->executeQuery("SELECT * FROM trains ORDER BY date, time");
+
+        printf("\nTrain Info:\n");
+        printf("\n——————————————————————————————————————————————————————————————————————————————\n");
+        printf("%-4s %-6s %-15s %-6s %-6s %-8s %-6s %-8s %-12s",
+                "SI", "Train#", "Name", "Start", "Dest", "Price", "Seat", "Time", "Date");
+        printf("\n——————————————————————————————————————————————————————————————————————————————\n");
+
+        while (res->next()) {
+            printf("%-4s %-6s %-15s %-6s %-6s %-8s %-6d %-8s %-12s\n",
+                res->getString("si").c_str(),
+                res->getString("train_number").c_str(),
+                res->getString("train_name").c_str(),
+                res->getString("start").c_str(),
+                res->getString("destination").c_str(),
+                res->getString("price").c_str(),
+                res->getInt("seat"),
+                res->getString("time").c_str(),
+                res->getString("date").c_str()
+            );
+        }
+        printf("\n——————————————————————————————————————————————————————————————————————————————\n");
+
+        delete res;
+        delete stmt;
+        delete con;
+
+    } catch (sql::SQLException& e) {
+        printf("MySQL Error: %s\n", e.what());
     }
-    pause();
+
+    pause_press();
+}
+
+void search_trains() {
+    system("clear");
+
+    char start[10] = "", destination[10] = "", date[20] = "";
+    char time_input[10] = "";
+    char min_price_input[10] = "";
+    char max_price_input[10] = "";
+
+    bool use_time = false, use_min_price = false, use_max_price = false;
+
+    printf("🔎 Find trains that match your journey!\n");
+    printf("(* Departure station, Destination, and Date are required)\n\n");
+
+    // 입력
+    printf("• Departure Station (e.g. PAR): ");
+    fgets(start, sizeof(start), stdin);
+    start[strcspn(start, "\n")] = 0;
+
+    printf("• Destination Station (e.g. LYO): ");
+    fgets(destination, sizeof(destination), stdin);
+    destination[strcspn(destination, "\n")] = 0;
+
+    printf("• Date (YYYY-MM-DD): ");
+    fgets(date, sizeof(date), stdin);
+    date[strcspn(date, "\n")] = 0;
+
+    printf("• Earliest Time (HH:MM, press enter to skip): ");
+    fgets(time_input, sizeof(time_input), stdin);
+    if (strcmp(time_input, "\n") != 0 && strlen(time_input) > 1) {
+        time_input[strcspn(time_input, "\n")] = '\0';
+        use_time = true;
+    }
+
+    printf("• Min Price (press enter to skip): ");
+    fgets(min_price_input, sizeof(min_price_input), stdin);
+    if (strcmp(min_price_input, "\n") != 0 && strlen(min_price_input) > 1) {
+        min_price_input[strcspn(min_price_input, "\n")] = '\0';
+        use_min_price = true;
+    }
+
+    printf("• Max Price (press enter to skip): ");
+    fgets(max_price_input, sizeof(max_price_input), stdin);
+    if (strcmp(max_price_input, "\n") != 0 && strlen(max_price_input) > 1) {
+        max_price_input[strcspn(max_price_input, "\n")] = '\0';
+        use_max_price = true;
+    }
+
+    // 필수 입력 검증
+    if (strlen(start) == 0) {
+        printf("\n[Departure Station] is required.\n");
+        pause_press();
+        return;
+    }
+    if (strlen(destination) == 0) {
+        printf("\n[Destination Station] is required.\n");
+        pause_press();
+        return;
+    }
+    if (strlen(date) == 0) {
+        printf("\n[Date] is required.\n");
+        pause_press();
+        return;
+    }
+
+    // 입력 요약 출력
+    printf("\n Your Search Criteria:\n");
+    printf("• Departure: %s\n", start);
+    printf("• Destination: %s\n", destination);
+    printf("• Date: %s\n", date);
+    printf("• Time After: %s\n", use_time ? time_input : "(any)");
+    printf("• Min Price: %s\n", use_min_price ? min_price_input : "(any)");
+    printf("• Max Price: %s\n", use_max_price ? max_price_input : "(any)\n");
+
+    try {
+        sql::mysql::MySQL_Driver* driver;
+        sql::Connection* con;
+        sql::PreparedStatement* pstmt;
+        sql::ResultSet* res;
+
+        driver = sql::mysql::get_mysql_driver_instance();
+        con = driver->connect(DB_HOST, DB_USER, DB_PASS);
+        con->setSchema("trainres");
+
+        std::string query = "SELECT * FROM trains WHERE start = ? AND destination = ? AND date = ?";
+        if (use_time) query += " AND time >= ?";
+        if (use_min_price) query += " AND price >= ?";
+        if (use_max_price) query += " AND price <= ?";
+        query += " ORDER BY time";
+
+        pstmt = con->prepareStatement(query);
+
+        int paramIndex = 1;
+        pstmt->setString(paramIndex++, start);
+        pstmt->setString(paramIndex++, destination);
+        pstmt->setString(paramIndex++, date);
+        if (use_time) pstmt->setString(paramIndex++, time_input);
+        if (use_min_price) pstmt->setInt(paramIndex++, atoi(min_price_input));
+        if (use_max_price) pstmt->setInt(paramIndex++, atoi(max_price_input));
+
+        res = pstmt->executeQuery();
+
+        int count = 0;
+        printf("\nSearch Results:\n");
+        printf("%-4s %-6s %-15s %-6s %-6s %-8s %-6s %-8s %-12s\n",
+               "SI", "Train#", "Name", "From", "To", "Price", "Seat", "Time", "Date");
+
+        while (res->next()) {
+            printf("%-4s %-6s %-15s %-6s %-6s %-8d %-6d %-8s %-12s\n",
+                   res->getString("si").c_str(),
+                   res->getString("train_number").c_str(),
+                   res->getString("train_name").c_str(),
+                   res->getString("start").c_str(),
+                   res->getString("destination").c_str(),
+                   res->getInt("price"),
+                   res->getInt("seat"),
+                   res->getString("time").c_str(),
+                   res->getString("date").c_str());
+            count++;
+        }
+
+        if (count == 0) {
+            printf("\nNo trains found for the given criteria.\n");
+        }
+
+        delete res;
+        delete pstmt;
+        delete con;
+
+    } catch (sql::SQLException& e) {
+        printf("MySQL Error: %s\n", e.what());
+    }
+
+    pause_press();
 }
 
 void bookticket() {
@@ -238,13 +423,14 @@ int main() {
     while (1) {
         system("clear");
         printf("\nRAILWAY RESERVATION SYSTEM\n");
-        printf("1. View Info\n2. Book Ticket\n3. Cancel Ticket\n4. Admin\n5. Exit\nChoice: ");
+        printf("1. View Info\n2. Search trains\n3. Book Ticket\n4. Cancel Ticket\n5. Admin\n6. Exit\nChoice: ");
         scanf("%d", &ch); getchar();
         if (ch == 1) viewinfo();
-        else if (ch == 2) bookticket();
-        else if (ch == 3) cancelticket();
-        else if (ch == 4) password();
-        else if (ch == 5) break;
+        else if (ch == 2) search_trains();
+        else if (ch == 3) bookticket();
+        else if (ch == 4) cancelticket();
+        else if (ch == 5) password();
+        else if (ch == 6) break;
         else { printf("Invalid.\n"); pause(); }
     }
     return 0;

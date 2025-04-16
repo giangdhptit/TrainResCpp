@@ -13,17 +13,17 @@ int main() {
         sql::ResultSet* res;
 
         driver = sql::mysql::get_mysql_driver_instance();
-        con = driver->connect("tcp://127.0.0.1:3306", "root", "123456a@");
+        con = driver->connect("tcp://localhost:3306", "root", "Wonhast52716!");
         if (con->isValid()) {
             std::cout << "Connection successful!" << std::endl;
         }
         con->setSchema("sms");
 
         stmt = con->createStatement();
-        res = stmt->executeQuery("SELECT * FROM sms.contacts WHERE contact_email = 'vinouye@aol.com'");
+        res = stmt->executeQuery("SELECT contact_city FROM sms.contacts WHERE contact_email = 'vinouye@aol.com'");
 
         while (res->next()) {
-            std::cout << res << std::endl;
+            std::cout << res->getString("contact_city") << std::endl;
         }
 
         delete res;
