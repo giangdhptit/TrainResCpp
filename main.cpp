@@ -10,6 +10,13 @@
 
 using namespace std;
 
+// Declare admin functions
+void adminMenu(sql::Connection* con);
+void addTrain(sql::Connection* con);
+void removeTrain(sql::Connection* con);
+void seeTrainList(sql::Connection* con);
+void manageMember(sql::Connection* con);
+
 bool verifyPassword(const string& inputPassword, const string& hashFromDB) {
     return inputPassword == hashFromDB;  // SIMULATION ONLY
 }
@@ -109,9 +116,9 @@ void handleTicketOptions() {
 }
 
 const std::string DB_HOST = "tcp://localhost:3306";
-const std::string DB_USER = "robin";
-const std::string DB_PASS = "!";
-const std::string DB_NAME = "trainres";
+const std::string DB_USER = "root";
+const std::string DB_PASS = "123456a@";
+const std::string DB_NAME = "train_res_cpp";
 
 void handleMenuOption(int ch, sql::Connection* con) {
     string username, password, email;
@@ -150,6 +157,7 @@ void handleMenuOption(int ch, sql::Connection* con) {
         case 4: // Admin login
             if (handleAdminLogin(con, username, password)) {
                 // Admin functionality
+                adminMenu(con);
             } else {
                 cout << "Admin login failed. Please try again.\n";
                 pause();
@@ -166,6 +174,162 @@ void handleMenuOption(int ch, sql::Connection* con) {
     }
 }
 
+// Function to add a train
+void addTrain(sql::Connection* con) {
+    string trainName, start, destination, price, time;
+    int seat;
+    string date;
+
+    // Get train details from admin
+    cout << "Enter train name: ";
+    cin >> trainName;
+    cout << "Enter start station: ";
+    cin >> start;
+    cout << "Enter destination station: ";
+    cin >> destination;
+    cout << "Enter price: ";
+    cin >> price;
+    cout << "Enter available seats: ";
+    cin >> seat;
+    cout << "Enter train time (HH:MM): ";
+    cin >> time;
+    cout << "Enter date (YYYY-MM-DD): ";
+    cin >> date;
+
+    try {
+        // Prepare SQL query to insert new train into the trains table
+        unique_ptr<sql::PreparedStatement> pstmt(
+            con->prepareStatement("INSERT INTO trains (train_name, start, destination, price, seat, time, date) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        );
+        pstmt->setString(1, trainName);
+        pstmt->setString(2, start);
+        pstmt->setString(3, destination);
+        pstmt->setString(4, price);
+        pstmt->setInt(5, seat);
+        pstmt->setString(6, time);
+        pstmt->setString(7, date);
+
+        pstmt->executeUpdate();
+        cout << "Train added successfully!" << endl;
+    } catch (sql::SQLException& e) {
+        cerr << "Error adding train: " << e.what() << endl;
+    }
+}
+
+// Function to remove a train
+void removeTrain(sql::Connection* con) {
+    string trainId;
+    cout << "Enter train ID to remove: ";
+    cin >> trainId;
+
+    try {
+        // Prepare SQL query to delete train from the trains table
+        unique_ptr<sql::PreparedStatement> pstmt(
+            con->prepareStatement("DELETE FROM trains WHERE train_id = ?")
+        );
+        pstmt->setString(1, trainId);
+
+        pstmt->executeUpdate();
+        cout << "Train removed successfully!" << endl;
+    } catch (sql::SQLException& e) {
+        cerr << "Error removing train: " << e.what() << endl;
+    }
+}
+
+// Function to see the reservation list
+void seeTrainList(sql::Connection* con) {
+    try {
+        // SQL query to retrieve all trains
+        unique_ptr<sql::PreparedStatement> pstmt(
+            con->prepareStatement("SELECT train_id, train_name, start, destination, price, seat, time, date FROM trains")
+        );
+
+        unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+
+        cout << "Train List:" << endl;
+        while (res->next()) {
+            cout << "Train ID: " << res->getInt("train_id")
+                 << ", Train Name: " << res->getString("train_name")
+                 << ", Start: " << res->getString("start")
+                 << ", Destination: " << res->getString("destination")
+                 << ", Price: " << res->getString("price")
+                 << ", Seats Available: " << res->getInt("seat")
+                 << ", Time: " << res->getString("time")
+                 << ", Date: " << res->getString("date") << endl;
+        }
+    } catch (sql::SQLException& e) {
+        cerr << "Error fetching train list: " << e.what() << endl;
+    }
+}
+
+// Function to manage members (e.g., activate, deactivate)
+void manageMember(sql::Connection* con) {
+    string username;
+    int action;
+    cout << "Enter username to manage: ";
+    cin >> username;
+    cout << "Choose action: \n1. Activate account\n2. Deactivate account\nChoice: ";
+    cin >> action;
+
+    try {
+        string query;
+        if (action == 1) {
+            query = "UPDATE users SET status = 'active' WHERE username = ?";
+        } else if (action == 2) {
+            query = "UPDATE users SET status = 'inactive' WHERE username = ?";
+        } else {
+            cout << "Invalid choice.\n";
+            return;
+        }
+
+        unique_ptr<sql::PreparedStatement> pstmt(
+            con->prepareStatement(query)
+        );
+        pstmt->setString(1, username);
+
+        pstmt->executeUpdate();
+        cout << "Member account status updated successfully!" << endl;
+    } catch (sql::SQLException& e) {
+        cerr << "Error managing member: " << e.what() << endl;
+    }
+}
+
+// Admin menu options
+void adminMenu(sql::Connection* con) {
+    int choice;
+    do {
+        cout << "\nAdmin Menu:\n";
+        cout << "1. Add Train\n";
+        cout << "2. Remove Train\n";
+        cout << "3. See Train List\n";
+        cout << "4. Manage Member\n";
+        cout << "5. Logout\n";
+        cout << "Choice: ";
+        cin >> choice;
+
+        switch (choice) {
+            case 1:
+                addTrain(con);
+                break;
+            case 2:
+                removeTrain(con);
+                break;
+            case 3:
+                seeTrainList(con);
+                break;
+            case 4:
+                manageMember(con);
+                break;
+            case 5:
+                cout << "Logging out...\n";
+                break;
+            default:
+                cout << "Invalid choice. Please try again.\n";
+                break;
+        }
+    } while (choice != 5);
+}
+
 int main() {
     int ch;
     std::string username, password, email;
@@ -179,13 +343,13 @@ int main() {
         if (con->isValid()) {
             cout << "Connection successful!" << endl;
         }
-        con->setSchema("train_res_cpp");
+        con->setSchema(DB_NAME);
         while (1) {
             system("clear");
             cout << "\nRAILWAY RESERVATION SYSTEM\n";
             cout << "1. View Train Info\n"; //everybody
             cout << "2. Search Trains\n"; //everybody - if user choose 1 train -> go to reserve function
-            cout << "3. Reserve/ Cancel Ticket"; //user page
+            cout << "3. Reserve/ Cancel Ticket\n"; //user page
             cout << "4. Admin Login\n"; //admin page
             cout << "5. Exit\n";
             cout << "Choice: ";
