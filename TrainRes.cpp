@@ -34,8 +34,8 @@ struct bookticket {
 } book[1000];
 
 const std::string DB_HOST = "tcp://localhost:3306";
-const std::string DB_USER = "root";
-const std::string DB_PASS = "pwd"; 
+const std::string DB_USER = "robin";
+const std::string DB_PASS = "robin123!";
 const std::string DB_NAME = "trainres";
 
 int k = 0, u = 0;
@@ -120,14 +120,13 @@ void viewinfo() {
 
         printf("\nTrain Info:\n");
         printf("\n——————————————————————————————————————————————————————————————————————————————\n");
-        printf("%-4s %-6s %-15s %-6s %-6s %-8s %-6s %-8s %-12s",
-                "SI", "Train#", "Name", "Start", "Dest", "Price", "Seat", "Time", "Date");
-        printf("\n——————————————————————————————————————————————————————————————————————————————\n");
+        printf("%-4s %-15s %-6s %-6s %-8s %-6s %-8s %-12s\n",
+               "ID", "Name", "Start", "Dest", "Price", "Seat", "Time", "Date");
+        printf("——————————————————————————————————————————————————————————————————————————————\n");
 
         while (res->next()) {
-            printf("%-4s %-6s %-15s %-6s %-6s %-8s %-6d %-8s %-12s\n",
-                res->getString("si").c_str(),
-                res->getString("train_number").c_str(),
+            printf("%-4d %-15s %-6s %-6s %-8s %-6d %-8s %-12s\n",
+                res->getInt("train_id"),
                 res->getString("train_name").c_str(),
                 res->getString("start").c_str(),
                 res->getString("destination").c_str(),
@@ -137,7 +136,7 @@ void viewinfo() {
                 res->getString("date").c_str()
             );
         }
-        printf("\n——————————————————————————————————————————————————————————————————————————————\n");
+        printf("——————————————————————————————————————————————————————————————————————————————\n");
 
         delete res;
         delete stmt;
