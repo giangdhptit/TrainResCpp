@@ -186,48 +186,6 @@ void search_trains() {
 
     bool use_time = false, use_min_price = false, use_max_price = false;
 
-    // printf("🔎 Find trains that match your journey!\n");
-    // printf("(* Departure station, Destination, and Date are required)\n\n");
-
-    // printf("• Departure Station: ");
-    // fgets(start, sizeof(start), stdin);
-    // start[strcspn(start, "\n")] = 0;
-
-    // printf("• Destination Station: ");
-    // fgets(destination, sizeof(destination), stdin);
-    // destination[strcspn(destination, "\n")] = 0;
-
-    // printf("• Date (YYYY-MM-DD): ");
-    // fgets(date, sizeof(date), stdin);
-    // date[strcspn(date, "\n")] = 0;
-
-    // printf("• Earliest Time (HH:MM, press enter to skip): ");
-    // fgets(time_input, sizeof(time_input), stdin);
-    // if (strcmp(time_input, "\n") != 0 && strlen(time_input) > 1) {
-    //     time_input[strcspn(time_input, "\n")] = '\0';
-    //     use_time = true;
-    // }
-
-    // printf("• Min Price (press enter to skip): ");
-    // fgets(min_price_input, sizeof(min_price_input), stdin);
-    // if (strcmp(min_price_input, "\n") != 0 && strlen(min_price_input) > 1) {
-    //     min_price_input[strcspn(min_price_input, "\n")] = '\0';
-    //     use_min_price = true;
-    // }
-
-    // printf("• Max Price (press enter to skip): ");
-    // fgets(max_price_input, sizeof(max_price_input), stdin);
-    // if (strcmp(max_price_input, "\n") != 0 && strlen(max_price_input) > 1) {
-    //     max_price_input[strcspn(max_price_input, "\n")] = '\0';
-    //     use_max_price = true;
-    // }
-
-    // if (strlen(start) == 0 || strlen(destination) == 0 || strlen(date) == 0) {
-    //     printf("\nAll required fields must be filled.\n");
-    //     pause_press();
-    //     return;
-    // }
-
     printf("🔎 Find trains that match your journey!\n");
     printf("(* Departure station, Destination, and Date are required)\n\n");
 
@@ -355,6 +313,140 @@ void search_trains() {
     pause_press();
 }
 
+void reserveTicket(sql::Connection* con, const std::string& username) {
+    string trainName;
+    int seatsRequested;
+
+    cout << "Enter the train name to reserve (e.g., TGV-101): ";
+    cin >> trainName;
+
+    cout << "Number of seats to reserve (e.g., 3): ";
+    cin >> seatsRequested;
+    clearInputBuffer();
+
+    try {
+        // Step 1: Check availability by train_name
+        unique_ptr<sql::PreparedStatement> checkStmt(
+            con->prepareStatement("SELECT train_id, seat, date FROM trains WHERE train_name = ?")
+        );
+        checkStmt->setString(1, trainName);
+        unique_ptr<sql::ResultSet> res(checkStmt->executeQuery());
+
+        if (res->next()) {
+            int trainId = res->getInt("train_id");
+            int availableSeats = res->getInt("seat");
+            string trainDate = res->getString("date");
+
+            if (seatsRequested > availableSeats) {
+                cout << "❗ Not enough seats available.\n";
+                return;
+            }
+
+            // Step 2: Reserve seats (with transaction)
+            con->setAutoCommit(false);  
+
+            // 2-1: Insert booking
+            unique_ptr<sql::PreparedStatement> bookStmt(
+                con->prepareStatement("INSERT INTO bookings (username, train_id, seat_count, date) VALUES (?, ?, ?, ?)")
+            );
+            bookStmt->setString(1, username);
+            bookStmt->setInt(2, trainId);  // insert resolved ID
+            bookStmt->setInt(3, seatsRequested);
+            bookStmt->setString(4, trainDate);
+            bookStmt->executeUpdate();
+
+            // 2-2: Update train seat count
+            unique_ptr<sql::PreparedStatement> updateTrain(
+                con->prepareStatement("UPDATE trains SET seat = seat - ? WHERE train_id = ?")
+            );
+            updateTrain->setInt(1, seatsRequested);
+            updateTrain->setInt(2, trainId);
+            updateTrain->executeUpdate();
+
+            con->commit();
+            cout << "✅ Reservation successful!" << endl;
+
+        } else {
+            cout << "❌ Train not found.\n";
+        }
+
+    } catch (sql::SQLException& e) {
+        con->rollback();
+        cerr << "❌ Reservation error: " << e.what() << endl;
+    }
+
+    pause_press();
+}
+
+
+void cancelTicket(sql::Connection* con, const std::string& username) {
+    int bookingId;
+    cout << "Enter Booking ID to cancel: ";
+    cin >> bookingId;
+
+    try {
+        con->setAutoCommit(false);  // transaction begin
+
+        // Step 1: Get booking info
+        unique_ptr<sql::PreparedStatement> getStmt(
+            con->prepareStatement("SELECT train_id, seat_count FROM bookings WHERE id = ? AND username = ?")
+        );
+        getStmt->setInt(1, bookingId);
+        getStmt->setString(2, username);
+        unique_ptr<sql::ResultSet> res(getStmt->executeQuery());
+
+        if (!res->next()) {
+            cout << "❌ Booking not found or not your booking.\n";
+            return;
+        }
+
+        int trainId = res->getInt("train_id");
+        int seatCount = res->getInt("seat_count");
+
+        // Step 2: Delete booking
+        unique_ptr<sql::PreparedStatement> delStmt(
+            con->prepareStatement("DELETE FROM bookings WHERE id = ?")
+        );
+        delStmt->setInt(1, bookingId);
+        delStmt->executeUpdate();
+
+        // Step 3: Restore seats
+        unique_ptr<sql::PreparedStatement> updStmt(
+            con->prepareStatement("UPDATE trains SET seat = seat + ? WHERE train_id = ?")
+        );
+        updStmt->setInt(1, seatCount);
+        updStmt->setInt(2, trainId);
+        updStmt->executeUpdate();
+
+        con->commit();
+        cout << "✅ Cancellation successful." << endl;
+
+    } catch (sql::SQLException& e) {
+        con->rollback();
+        cerr << "❌ Cancellation error: " << e.what() << endl;
+    }
+
+    pause_press();
+}
+
+
+// void handleTicketOptions(sql::Connection* con, const std::string& username) {
+void handleTicketOptions(sql::Connection* con, const std::string& username) {
+    int ticket_option;
+    cout << "\n1. Reserve Ticket\n2. Cancel Ticket\nChoice: ";
+    cin >> ticket_option;
+
+    if (ticket_option == 1) {
+        reserveTicket(con, username);
+    } else if (ticket_option == 2) {
+        cancelTicket(con, username);
+    } else {
+        cout << "Invalid option.\n";
+        pause_press();
+    }
+}
+
+
 void handleMenuOption(int ch, sql::Connection* con) {
     string username, password, email;
     int ch1;
@@ -378,7 +470,7 @@ void handleMenuOption(int ch, sql::Connection* con) {
             if (ch1 == 1) {
                 // User Login
                 if (handleUserLogin(con, username, password)) {
-                    handleTicketOptions();
+                    handleTicketOptions(con, username);
                 } else {
                     cout << "Please login to proceed.\n";
                     pause();
@@ -585,7 +677,7 @@ int main() {
             cout << "\n[ RAILWAY RESERVATION SYSTEM ]\n\n";
             cout << "1. View Train Info\n"; //everybody
             cout << "2. Search Trains\n"; //everybody - if user choose 1 train -> go to reserve function
-            cout << "3. Reserve/ Cancel Ticket\n"; //user page
+            // cout << "3. Reserve/ Cancel Ticket\n"; //user page
             cout << "3. Reserve/ Cancel Ticket\n"; //user page
             cout << "4. Admin Login\n"; //admin page
             cout << "5. Exit\n";

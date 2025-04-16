@@ -4,6 +4,7 @@
         "iostream": "cpp",
         "string": "cpp",
         "format": "cpp",
-        "memory": "cpp"
+        "memory": "cpp",
+        "iosfwd": "cpp"
     }
 }
