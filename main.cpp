@@ -110,7 +110,7 @@ void handleTicketOptions() {
 
 const std::string DB_HOST = "tcp://localhost:3306";
 const std::string DB_USER = "robin";
-const std::string DB_PASS = "!";
+const std::string DB_PASS = "robin123!";
 const std::string DB_NAME = "trainres";
 
 void handleMenuOption(int ch, sql::Connection* con) {
@@ -179,13 +179,13 @@ int main() {
         if (con->isValid()) {
             cout << "Connection successful!" << endl;
         }
-        con->setSchema("train_res_cpp");
+        con->setSchema(DB_NAME);
         while (1) {
             system("clear");
             cout << "\nRAILWAY RESERVATION SYSTEM\n";
             cout << "1. View Train Info\n"; //everybody
             cout << "2. Search Trains\n"; //everybody - if user choose 1 train -> go to reserve function
-            cout << "3. Reserve/ Cancel Ticket"; //user page
+            cout << "3. Reserve/ Cancel Ticket\n"; //user page
             cout << "4. Admin Login\n"; //admin page
             cout << "5. Exit\n";
             cout << "Choice: ";
