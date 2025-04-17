@@ -740,30 +740,27 @@ void seeUserList(sql::Connection* con) {
 // Function to see the list of reservations
 void seeReservationList(sql::Connection* con) {
     try {
-        // SQL query to retrieve reservations along with train and user details
+        // SQL query to retrieve booking details along with train information
         unique_ptr<sql::PreparedStatement> pstmt(
             con->prepareStatement(
-                "SELECT r.reservation_id, u.username, t.train_name, r.departure_time, r.destination, r.seat_count, r.status "
-                "FROM reservations r "
-                "JOIN users u ON r.user_id = u.user_id "
-                "JOIN trains t ON r.train_id = t.train_id"
+                "SELECT b.id, b.username, t.train_name, b.seat_count, b.date "
+                "FROM bookings b "
+                "JOIN trains t ON b.train_id = t.train_id"
             )
         );
 
         unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
 
-        cout << "Reservation List:" << endl;
+        cout << "Booking List:" << endl;
         while (res->next()) {
-            cout << "Reservation ID: " << res->getInt("reservation_id")
-                 << ", User: " << res->getString("username")
+            cout << "Booking ID: " << res->getInt("id")
+                 << ", Username: " << res->getString("username")
                  << ", Train: " << res->getString("train_name")
-                 << ", Departure: " << res->getString("departure_time")
-                 << ", Destination: " << res->getString("destination")
                  << ", Seats Reserved: " << res->getInt("seat_count")
-                 << ", Status: " << res->getString("status") << endl;
+                 << ", Date: " << res->getString("date") << endl;
         }
     } catch (sql::SQLException& e) {
-        cerr << "Error fetching reservation list: " << e.what() << endl;
+        cerr << "Error fetching booking list: " << e.what() << endl;
     }
 }
 
