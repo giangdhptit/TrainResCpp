@@ -463,7 +463,6 @@ void cancelTicket(sql::Connection* con, const std::string& username) {
 }
 
 
-// void handleTicketOptions(sql::Connection* con, const std::string& username) {
 void handleTicketOptions(sql::Connection* con, const std::string& username) {
     int ticket_option;
     cout << "\n1. Reserve Ticket\n2. Cancel Ticket\nChoice: ";
