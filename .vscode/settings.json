@@ -5,6 +5,10 @@
         "string": "cpp",
         "format": "cpp",
         "memory": "cpp",
+<<<<<<< Updated upstream
         "iosfwd": "cpp"
+=======
+        "iomanip": "cpp"
+>>>>>>> Stashed changes
     }
 }

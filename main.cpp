@@ -11,9 +11,9 @@
 using namespace std;
 
 const std::string DB_HOST = "tcp://localhost:3306";
-const std::string DB_USER = "robin";
-const std::string DB_PASS = "robin123!";
-const std::string DB_NAME = "trainres";
+const std::string DB_USER = "root";
+const std::string DB_PASS = "123456a@";
+const std::string DB_NAME = "train_res_cpp";
 
 // Declare admin functions
 void adminMenu(sql::Connection* con);
@@ -21,6 +21,9 @@ void addTrain(sql::Connection* con);
 void removeTrain(sql::Connection* con);
 void seeTrainList(sql::Connection* con);
 void manageMember(sql::Connection* con);
+void seeUserList(sql::Connection* con);  // New function to see all users
+void seeReservationList(sql::Connection* con);  // Function to see the reservation list
+
 
 bool verifyPassword(const string& inputPassword, const string& hashFromDB) {
     return inputPassword == hashFromDB;  // SIMULATION ONLY
@@ -75,6 +78,36 @@ bool login(sql::Connection* con, const string& username, const string& password)
     return false;
 }
 
+
+bool adminLogin(sql::Connection* con, const string& username, const string& password) {
+    try {
+        unique_ptr<sql::PreparedStatement> pstmt(
+            con->prepareStatement("SELECT password_hash, u_role FROM users WHERE username = ? and u_role = 'admin' LIMIT 1")
+        );
+        pstmt->setString(1, username);
+
+        // Use unique_ptr for res
+        unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+
+        if (res->next()) {
+            string hashFromDB = res->getString("password_hash");
+            string role = res->getString("u_role");
+
+            if (verifyPassword(password, hashFromDB)) {
+                cout << "✅ Login successful. Role: " << role << endl;
+                return true;
+            } else {
+                cout << "❌ Incorrect password." << endl;
+            }
+        } else {
+            cout << "❌ Admin not found." << endl;
+        }
+    } catch (sql::SQLException& e) {
+        cerr << "Authentication error: " << e.what() << endl;
+    }
+    return false;
+}
+
 // Function to handle user login
 bool handleUserLogin(sql::Connection* con, string& username, string& password) {
     cout << "Enter username: ";
@@ -101,7 +134,7 @@ bool handleAdminLogin(sql::Connection* con, string& username, string& password) 
     cin >> username;
     cout << "Enter password: ";
     cin >> password;
-    return login(con, username, password);  // Assuming login() is already defined
+    return adminLogin(con, username, password);  // Assuming login() is already defined
 }
 
 // Function to handle ticket options after login
@@ -140,7 +173,7 @@ void viewTrainInfo() {
 
         driver = sql::mysql::get_mysql_driver_instance();
         con = driver->connect(DB_HOST, DB_USER, DB_PASS);
-        con->setSchema("trainres");
+        con->setSchema(DB_NAME);
 
         stmt = con->createStatement();
         res = stmt->executeQuery("SELECT * FROM trains ORDER BY date, time");
@@ -591,33 +624,54 @@ void seeTrainList(sql::Connection* con) {
 
 // Function to manage members (e.g., activate, deactivate)
 void manageMember(sql::Connection* con) {
-    string username;
     int action;
-    cout << "Enter username to manage: ";
-    cin >> username;
-    cout << "Choose action: \n1. Activate account\n2. Deactivate account\nChoice: ";
+    cout << "Choose an action: \n";
+    cout << "1. Grant admin authority\n";
+    cout << "2. Un-grant authority\n";
+    cout << "3. View User List\n";
+    cout << "Choice: ";
     cin >> action;
 
-    try {
-        string query;
-        if (action == 1) {
-            query = "UPDATE users SET status = 'active' WHERE username = ?";
-        } else if (action == 2) {
-            query = "UPDATE users SET status = 'inactive' WHERE username = ?";
-        } else {
-            cout << "Invalid choice.\n";
-            return;
+    switch (action) {
+        case 1: {
+            string username;
+            cout << "Enter username to grant admin rights: ";
+            cin >> username;
+            try {
+                unique_ptr<sql::PreparedStatement> pstmt(
+                    con->prepareStatement("UPDATE users SET u_role = 'admin' WHERE username = ?")
+                );
+                pstmt->setString(1, username);
+                pstmt->executeUpdate();
+                cout << "Admin rights granted to user " << username << endl;
+            } catch (sql::SQLException& e) {
+                cerr << "Error granting admin rights: " << e.what() << endl;
+            }
+            break;
         }
-
-        unique_ptr<sql::PreparedStatement> pstmt(
-            con->prepareStatement(query)
-        );
-        pstmt->setString(1, username);
-
-        pstmt->executeUpdate();
-        cout << "Member account status updated successfully!" << endl;
-    } catch (sql::SQLException& e) {
-        cerr << "Error managing member: " << e.what() << endl;
+        case 2: {
+            string username;
+            cout << "Enter username to remove admin rights: ";
+            cin >> username;
+            try {
+                unique_ptr<sql::PreparedStatement> pstmt(
+                    con->prepareStatement("UPDATE users SET u_role = 'user' WHERE username = ?")
+                );
+                pstmt->setString(1, username);
+                pstmt->executeUpdate();
+                cout << "Admin rights removed from user " << username << endl;
+            } catch (sql::SQLException& e) {
+                cerr << "Error removing admin rights: " << e.what() << endl;
+            }
+            break;
+        }
+        case 3: {
+            seeUserList(con);  // View the user list
+            break;
+        }
+        default:
+            cout << "Invalid choice.\n";
+            break;
     }
 }
 
@@ -630,7 +684,8 @@ void adminMenu(sql::Connection* con) {
         cout << "2. Remove Train\n";
         cout << "3. See Train List\n";
         cout << "4. Manage Member\n";
-        cout << "5. Logout\n";
+        cout << "5. See Reservation List\n";
+        cout << "6. Logout\n";
         cout << "Choice: ";
         cin >> choice;
 
@@ -648,6 +703,9 @@ void adminMenu(sql::Connection* con) {
                 manageMember(con);
                 break;
             case 5:
+                seeReservationList(con);
+                break;
+            case 6:
                 cout << "Logging out...\n";
                 break;
             default:
@@ -655,6 +713,58 @@ void adminMenu(sql::Connection* con) {
                 break;
         }
     } while (choice != 5);
+}
+
+// Function to see the list of users
+void seeUserList(sql::Connection* con) {
+    try {
+        // SQL query to retrieve all users
+        unique_ptr<sql::PreparedStatement> pstmt(
+            con->prepareStatement("SELECT user_id, username, email, u_role FROM users")
+        );
+
+        unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+
+        cout << "User List:" << endl;
+        while (res->next()) {
+            cout << "User ID: " << res->getInt("user_id")
+                 << ", Username: " << res->getString("username")
+                 << ", Email: " << res->getString("email")
+                 << ", Role: " << res->getString("u_role") << endl;
+        }
+    } catch (sql::SQLException& e) {
+        cerr << "Error fetching user list: " << e.what() << endl;
+    }
+}
+
+// Function to see the list of reservations
+void seeReservationList(sql::Connection* con) {
+    try {
+        // SQL query to retrieve reservations along with train and user details
+        unique_ptr<sql::PreparedStatement> pstmt(
+            con->prepareStatement(
+                "SELECT r.reservation_id, u.username, t.train_name, r.departure_time, r.destination, r.seat_count, r.status "
+                "FROM reservations r "
+                "JOIN users u ON r.user_id = u.user_id "
+                "JOIN trains t ON r.train_id = t.train_id"
+            )
+        );
+
+        unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+
+        cout << "Reservation List:" << endl;
+        while (res->next()) {
+            cout << "Reservation ID: " << res->getInt("reservation_id")
+                 << ", User: " << res->getString("username")
+                 << ", Train: " << res->getString("train_name")
+                 << ", Departure: " << res->getString("departure_time")
+                 << ", Destination: " << res->getString("destination")
+                 << ", Seats Reserved: " << res->getInt("seat_count")
+                 << ", Status: " << res->getString("status") << endl;
+        }
+    } catch (sql::SQLException& e) {
+        cerr << "Error fetching reservation list: " << e.what() << endl;
+    }
 }
 
 int main() {
