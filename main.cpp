@@ -291,7 +291,7 @@ void search_trains() {
 
         driver = sql::mysql::get_mysql_driver_instance();
         con = driver->connect(DB_HOST, DB_USER, DB_PASS);
-        con->setSchema("trainres");
+        con->setSchema(DB_NAME);
 
         std::string query = "SELECT * FROM trains WHERE start = ? AND destination = ? AND date = ?";
         if (use_time) query += " AND time >= ?";
